@@ -1,0 +1,10 @@
+data
+logs
+venv
+exp*.sh
+exp*.bash
+
+.DS_Store
+.idea
+.pytest_cache
+__pycache__
