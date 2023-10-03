@@ -1,3 +1,5 @@
+import numpy as np
+from scipy.special import comb
 import networkx as nx
 from networkx.algorithms import bipartite
 from random import sample
@@ -8,6 +10,7 @@ import sys
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DIR_DATA = BASE_DIR / "data"
+
 DATA_FILE_IMDB = "imdb_edge.csv"
 CLEAN_IMDB = "imdb_clean.csv"
 DATA_FILE_ORKUT = "sanitized-orkut.txt"
@@ -129,6 +132,10 @@ def down_degree(graph, vertex_id):
     return len(list(smaller_neighbors(graph, vertex_id)))
 
 
+def star_count(graph, star_size):
+    sum(comb(d, star_size) for _, d in graph.degree())
+
+
 def cycles(graph, cycle_size):
     cycle_list = nx.simple_cycles(graph, length_bound=cycle_size)
     return (cycle for cycle in cycle_list if len(cycle) == cycle_size)
@@ -138,5 +145,27 @@ def cycle_count(graph, cycle_size):
     return len(list(cycles(graph, cycle_size)))
 
 
+def number_of_walks(G, walk_length):
+    if walk_length < 0:
+        raise ValueError(f"`walk_length` cannot be negative: {walk_length}")
+
+    A = nx.adjacency_matrix(G, weight=None)
+    power = np.linalg.matrix_power(A.toarray(), walk_length)
+    result = {
+        u: {v: power[u_idx, v_idx] for v_idx, v in enumerate(G)}
+        for u_idx, u in enumerate(G)
+    }
+    return result
+
+
+def walk_count(graph, path_length):
+    walks = number_of_walks(graph, path_length)
+    return sum(sum(value.values()) for value in walks.values())
+
+
 def degeneracy(graph):
     return max(nx.core_number(graph).values())
+
+
+def log_graph_infos(graph_name):
+    raise NotImplementedError

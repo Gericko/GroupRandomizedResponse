@@ -26,6 +26,16 @@ ALGOS = {
     "arr_inf": estimate_triangles_smooth_arr_without_count,
 }
 
+CONFIG_TEST = {
+    "graph": "wiki",
+    "graph_size": 100,
+    "exp_name": "test",
+    "algorithm": "arr_clip",
+    "privacy_budget": 1,
+    "sample": 3,
+    "nb_iter": 1,
+}
+
 
 def experience_triangle(graph, param):
     for _ in trange(param["nb_iter"]):
@@ -104,5 +114,6 @@ def get_graph(graph_name):
 
 if __name__ == "__main__":
     config = vars(get_parser().parse_args())
+    # config = CONFIG_TEST
     graph = get_graph(config["graph"])
     experience_triangle(graph, config)

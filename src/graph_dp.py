@@ -1,7 +1,6 @@
 import networkx as nx
 import numpy as np
 from scipy.stats import laplace
-from itertools import combinations
 
 from graph import (
     smaller_neighbors,
@@ -9,12 +8,14 @@ from graph import (
 )
 from dp_tools import (
     group_randomized_response,
-    get_grr_alpha,
-    get_grr_beta,
     asymmetric_randomized_response,
-    unbiased_arr_count,
-    get_arr_alpha,
-    get_arr_beta,
+    proba_grr_from_one,
+    proba_grr_from_zero,
+    proba_arr_from_one,
+    proba_arr_from_zero,
+    get_max_estimation_grr,
+    get_max_alpha_grr,
+    get_min_proba_from_one_grr,
 )
 from partition import PseudoRandomPartition
 
@@ -30,10 +31,6 @@ def estimate_down_degrees(graph, privacy_budget):
     }
 
 
-def estimate_max_down_degree(graph, privacy_budget):
-    return max(estimate_down_degrees(graph, privacy_budget).values())
-
-
 def get_seeds(size):
     return np.random.randint(
         np.iinfo(np.uint32).min, high=np.iinfo(np.uint32).max, size=size
@@ -47,11 +44,64 @@ def get_partitions(graph, sample_size):
     }
 
 
-def smaller_forks(graph, vertex_id):
-    return combinations(sorted(smaller_neighbors(graph, vertex_id)), 2)
+class GraphDP:
+    def __init__(self, graph, privacy_budget):
+        self.graph = graph
+        self.privacy_budget = privacy_budget
+        self._nx_graph = None
+
+    def has_edge(self, i, j):
+        raise NotImplementedError
+
+    def proba_from_one(self, i, j):
+        raise NotImplementedError
+
+    def proba_from_zero(self, i, j):
+        raise NotImplementedError
+
+    def alpha(self, i, j):
+        p1 = self.proba_from_one(i, j)
+        p0 = self.proba_from_zero(i, j)
+        return 1 / (p1 - p0)
+
+    def beta(self, i, j):
+        p1 = self.proba_from_one(i, j)
+        p0 = self.proba_from_zero(i, j)
+        return p0 / (p1 - p0)
+
+    def edge_estimation(self, i, j):
+        return self.alpha(i, j) * self.has_edge(i, j) - self.beta(i, j)
+
+    def smaller_neighbors(self, vertex):
+        vector = np.zeros(self.graph.number_of_nodes())
+        for i in range(vertex):
+            vector[i] = self.edge_estimation(vertex, i)
+        return vector
+
+    def to_graph(self):
+        if self._nx_graph:
+            return self._nx_graph
+        adjacency_dict = {
+            v: {w for w in self.graph.nodes if v != w and self.has_edge(v, w)}
+            for v in self.graph.nodes
+        }
+        self._nx_graph = nx.Graph(adjacency_dict)
+        return self._nx_graph
+
+    def max_unbiased_degree(self):
+        raise NotImplementedError
+
+    def max_estimation(self):
+        raise NotImplementedError
+
+    def max_alpha(self):
+        raise NotImplementedError
+
+    def min_proba_from_one(self):
+        raise NotImplementedError
 
 
-def publish_edge_list(graph, privacy_budget, partition_dict):
+def publish_edge_list_grr(graph, privacy_budget, partition_dict):
     return {
         node: group_randomized_response(
             smaller_neighbors(graph, node), privacy_budget, partition_dict[node]
@@ -60,68 +110,31 @@ def publish_edge_list(graph, privacy_budget, partition_dict):
     }
 
 
-def get_alpha(privacy_budget, partition_dict):
-    partition = next(iter(partition_dict.values()))
-    return get_grr_alpha(
-        privacy_budget,
-        partition.bin_size,
-        partition.data_size,
-    )
-
-
-def get_beta_dict(graph, privacy_budget, partition_dict, down_degrees):
-    return {
-        node: get_grr_beta(
-            privacy_budget,
-            partition_dict[node].bin_size,
-            partition_dict[node].data_size,
-            down_degrees[node] / partition_dict[node].data_size,
-        )
-        for node in graph.nodes
-    }
-
-
-class GraphGRR:
+class GraphGRR(GraphDP):
     def __init__(self, graph, privacy_budget, sample_size, down_degrees):
-        self.graph = graph
-        self.privacy_budget = privacy_budget
+        super(GraphGRR, self).__init__(graph, privacy_budget)
         self.sample_size = sample_size
         self.down_degrees = down_degrees
         self.partition_set = get_partitions(graph, sample_size)
-        self.published_edges = publish_edge_list(
-            graph, privacy_budget, self.partition_set
-        )
-        self.alpha = get_alpha(privacy_budget, self.partition_set)
-        self.betas = get_beta_dict(
-            graph, privacy_budget, self.partition_set, self.down_degrees
-        )
+        self.published_edges = publish_edge_list_grr(graph, privacy_budget, self.partition_set)
+        self._max_unbiased_degree = None
 
     def has_edge(self, i, j):
-        if i == j:
-            return False
-        if i > j:
-            i, j = j, i
-        return self.partition_set[j].bin_of(i) in self.published_edges[j]
-
-    def edge_estimation(self, i, j):
         if i == j:
             raise ValueError("No self-loop in the obfuscated graph")
         if i > j:
             i, j = j, i
-        return self.alpha * self.has_edge(i, j) - self.betas[j]
+        return self.partition_set[j].bin_of(i) in self.published_edges[j]
 
-    def unbiase_edges(self, vector, publishing_node):
-        return self.alpha * vector - self.betas[publishing_node]
+    def proba_from_one(self, i, j):
+        if i > j:
+            i, j = j, i
+        return proba_grr_from_one(self.privacy_budget, self.partition_set[j], self.down_degrees[j])
 
-    def smaller_neighbors(self, vertex):
-        vector = np.zeros(self.graph.number_of_nodes())
-        for i in range(vertex):
-            vector[i] = int(self.has_edge(vertex, i))
-        vector[:vertex] = self.unbiase_edges(vector[:vertex], vertex)
-        return vector
-
-    def get_beta_max(self):
-        return max(self.betas.values())
+    def proba_from_zero(self, i, j):
+        if i > j:
+            i, j = j, i
+        return proba_grr_from_zero(self.privacy_budget, self.partition_set[j], self.down_degrees[j])
 
     def download_cost(self):
         return (
@@ -130,6 +143,22 @@ class GraphGRR:
             / self.sample_size
             / (2 + self.sample_size * (np.exp(self.privacy_budget) - 1))
         )
+
+    def max_unbiased_degree(self):
+        if self._max_unbiased_degree:
+            return self._max_unbiased_degree
+        nx_graph = self.to_graph()
+        self._max_unbiased_degree = max(d for n, d in nx_graph.degree()) * self.max_estimation()
+        return self._max_unbiased_degree
+
+    def max_estimation(self):
+        return get_max_estimation_grr(self.privacy_budget, self.partition_set[0])
+
+    def max_alpha(self):
+        return get_max_alpha_grr(self.privacy_budget, self.partition_set[0])
+
+    def min_proba_from_one(self):
+        return get_min_proba_from_one_grr(self.partition_set[0])
 
 
 def publish_edge_list_arr(graph, privacy_budget, sample_rate):
@@ -141,38 +170,23 @@ def publish_edge_list_arr(graph, privacy_budget, sample_rate):
     }
 
 
-class GraphARR:
+class GraphARR(GraphDP):
     def __init__(self, graph, privacy_budget, mu):
-        self.graph = graph
-        self.privacy_budget = privacy_budget
-        self.sample_rate = mu**2
+        super(GraphARR, self).__init__(graph, privacy_budget)
+        self.sample_rate = mu
         self.published_edges = publish_edge_list_arr(graph, privacy_budget, mu)
-        self.alpha = get_arr_alpha(self.privacy_budget, self.sample_rate)
-        self.betas = {node: get_arr_beta(self.privacy_budget) for node in graph.nodes}
+        self._max_unbiased_degree = None
 
     def has_edge(self, i, j):
         if i > j:
             i, j = j, i
         return i in self.published_edges[j]
 
-    def is_downloaded(self, i, j, vertex_id):
-        if i > j:
-            i, j = j, i
-        return self.has_edge(vertex_id, j)
+    def proba_from_one(self, i, j):
+        return proba_arr_from_one(self.sample_rate)
 
-    def is_observed(self, i, j, vertex_id):
-        return self.is_downloaded(i, j, vertex_id) and self.has_edge(i, j)
-
-    def edge_estimation(self, i, j, vertex_id):
-        if i > j:
-            i, j = j, i
-        return self.alpha * self.is_observed(i, j, vertex_id) - self.betas[j]
-
-    def unbiased_count(self, count, out_of):
-        return unbiased_arr_count(count, out_of, self.privacy_budget, self.sample_rate)
-
-    def to_graph(self):
-        return nx.Graph(self.published_edges)
+    def proba_from_zero(self, i, j):
+        return proba_arr_from_zero(self.privacy_budget, self.sample_rate)
 
     def download_cost(self):
         return (
@@ -181,3 +195,18 @@ class GraphARR:
             * self.graph.number_of_nodes() ** 2
             * np.log(self.graph.number_of_nodes())
         )
+
+    def max_unbiased_degree(self):
+        if self._max_unbiased_degree:
+            return self._max_unbiased_degree
+        self._max_unbiased_degree = max(sum(self.edge_estimation(i, j) for j in self.published_edges[i]) for i in self.published_edges)
+        return self._max_unbiased_degree
+
+    def max_estimation(self):
+        return self.alpha(0, 1) - self.beta(0, 1)
+
+    def max_alpha(self):
+        return self.alpha(0, 1)
+
+    def min_proba_from_one(self):
+        return proba_arr_from_one(self.sample_rate)

@@ -5,6 +5,7 @@ from itertools import product
 from dp_tools import make_clip_dict
 from graph import smaller_neighbors, down_degree
 from graph_dp import GraphARR
+from graph_view_dp import OneDownload
 
 
 ALPHA = 150
@@ -24,33 +25,33 @@ def kullback_leibler(p1, p2):
 
 
 class ARRLocalTriangleCounting:
-    def __init__(self, epsilon, graph, obfuscated_graph, degrees):
+    def __init__(self, epsilon, graph, graph_download_scheme, degrees):
         self.epsilon = epsilon
         self.graph = graph
-        self.obfuscated_graph = obfuscated_graph
+        self.graph_download_scheme = graph_download_scheme
         self.degrees = degrees
         self.rv = laplace(0, 1)
 
     def _probability_bound(self, threshold, vertex_id):
         return np.exp(
             -self.degrees[vertex_id]
-            * kullback_leibler(threshold, self.obfuscated_graph.sample_rate)
+            * kullback_leibler(threshold, self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1))
         )
 
     def clipping_threshold(self, vertex_id):
-        if self.obfuscated_graph.sample_rate >= 1:
+        if self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) >= 1:
             return self.degrees[vertex_id]
         if self.degrees[vertex_id] <= 1:
             return 0
         lam = 1
         while (
-            self._probability_bound(lam * self.obfuscated_graph.sample_rate, vertex_id)
+            self._probability_bound(lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1), vertex_id)
             > BETA
         ):
             lam += 1
-            if lam * self.obfuscated_graph.sample_rate >= 1:
+            if lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) >= 1:
                 return self.degrees[vertex_id]
-        return lam * self.obfuscated_graph.sample_rate * self.degrees[vertex_id]
+        return lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) * self.degrees[vertex_id]
 
     def publish(self, vertex_id):
         contributions = {
@@ -64,38 +65,38 @@ class ARRLocalTriangleCounting:
         t_i, bias = 0, 0
         d = down_degree(self.graph, vertex_id)
         s_i = d * (d - 1) / 2
+        local_view = self.graph_download_scheme.get_local_view(vertex_id)
         for i, j in filter(
             lambda x: x[0] > x[1],
             product(smaller_neighbors(self.graph, vertex_id), repeat=2),
         ):
-            t_i += self.obfuscated_graph.is_observed(i, j, vertex_id)
+            t_i += local_view.has_edge(i, j)
             if (
                 contributions[i] >= 1
                 and contributions[j] >= 1
                 and not is_clipped[i]
                 and not is_clipped[j]
             ):
-                contributions[i] -= self.obfuscated_graph.is_observed(i, j, vertex_id)
-                contributions[j] -= self.obfuscated_graph.is_observed(i, j, vertex_id)
+                contributions[i] -= local_view.has_edge(i, j)
+                contributions[j] -= local_view.has_edge(i, j)
             else:
-                bias -= self.obfuscated_graph.is_observed(i, j, vertex_id)
+                bias -= local_view.has_edge(i, j)
         return (
-            self.obfuscated_graph.unbiased_count(t_i, s_i),
-            self.obfuscated_graph.unbiased_count(bias, 0),
-            self.obfuscated_graph.unbiased_count(
+            local_view.unbiased_count(t_i, s_i),
+            local_view.unbiased_count(bias, 0),
+            local_view.unbiased_count(
                 self.clipping_threshold(vertex_id) / self.epsilon * self.rv.rvs(), 0
             ),
         )
 
     def std(self, vertex_id):
-        return self.obfuscated_graph.unbiased_count(
-            self.clipping_threshold(vertex_id) / self.epsilon * self.rv.std(), 0
-        )
+        local_view = self.graph_download_scheme.get_local_view(vertex_id)
+        return local_view.max_estimation() * self.clipping_threshold(vertex_id) / self.epsilon * self.rv.std()
 
 
-def count_triangles_arr(graph, obfuscated_graph, counting_budget, degrees):
+def count_triangles_arr(graph, graph_download_scheme, counting_budget, degrees):
     publishing_mechanism = ARRLocalTriangleCounting(
-        counting_budget, graph, obfuscated_graph, degrees
+        counting_budget, graph, graph_download_scheme, degrees
     )
     return tuple_sum(
         (publishing_mechanism.publish(vertex_id) for vertex_id in graph.nodes),
@@ -115,8 +116,9 @@ def estimate_triangles_arr(graph, privacy_budget, sample_size):
     degrees = {n: max(d + noise.rvs() + ALPHA, 0) for n, d in graph.degree()}
 
     obfuscated_graph = GraphARR(graph, publishing_budget, sample_rate)
+    graph_download_scheme = OneDownload(obfuscated_graph)
 
     count, bias, noise = count_triangles_arr(
-        graph, obfuscated_graph, counting_budget, degrees
+        graph, graph_download_scheme, counting_budget, degrees
     )
-    return count, bias, noise, obfuscated_graph.download_cost()
+    return count, bias, noise, graph_download_scheme.download_cost()

@@ -64,37 +64,85 @@ def group_randomized_response(data_list, epsilon, partition):
     return sparse_randomized_response(sampled_list, boosted_budget, partition.nb_bins)
 
 
-def get_grr_alpha(epsilon, bin_size, data_size):
-    boosted_budget = budget_sampling(epsilon, bin_size)
-    size_equivalent = bin_size * ceil(data_size / bin_size)
-    return (
-        size_equivalent
-        * bin_size
-        / (size_equivalent - bin_size + 1)
-        * (1 + 2 / (np.exp(boosted_budget) - 1))
-    )
+def proba_grr_from_one(epsilon, partition, nb_ones):
+    n = partition.nb_bins * partition.bin_size
+    s = partition.bin_size
+    boosted_budget = budget_sampling(epsilon, s)
+    p = ((s - 1) * (nb_ones - 1) / n + 1) / s
+    return (np.exp(boosted_budget) * p + 1 - p) / (1 + np.exp(boosted_budget))
 
 
-def get_grr_beta(epsilon, bin_size, data_size, sparsity):
-    boosted_budget = budget_sampling(epsilon, bin_size)
-    size_equivalent = bin_size * ceil(data_size / bin_size)
-    return (bin_size - 1) / (
-        size_equivalent - bin_size + 1
-    ) * data_size * sparsity + size_equivalent * bin_size / (
-        size_equivalent - bin_size + 1
-    ) / (
-        np.exp(boosted_budget) - 1
-    )
+def proba_grr_from_zero(epsilon, partition, nb_ones):
+    n = partition.nb_bins * partition.bin_size
+    s = partition.bin_size
+    boosted_budget = budget_sampling(epsilon, s)
+    p = (s - 1) / s * nb_ones / n
+    return (np.exp(boosted_budget) * p + 1 - p) / (1 + np.exp(boosted_budget))
 
 
-def unbiase_grr_vector(vector, epsilon, bin_size, data_size, sparsity):
-    alpha = get_grr_alpha(epsilon, bin_size, data_size)
-    beta = get_grr_beta(epsilon, bin_size, data_size, sparsity)
-    return alpha * vector - beta
+# def get_grr_alpha(epsilon, bin_size, data_size):
+#     boosted_budget = budget_sampling(epsilon, bin_size)
+#     size_equivalent = bin_size * ceil(data_size / bin_size)
+#     return (
+#         size_equivalent
+#         * bin_size
+#         / (size_equivalent - bin_size + 1)
+#         * (1 + 2 / (np.exp(boosted_budget) - 1))
+#     )
+def get_grr_alpha(epsilon, partition, nb_ones):
+    p1 = proba_grr_from_one(epsilon, partition, nb_ones)
+    p0 = proba_grr_from_zero(epsilon, partition, nb_ones)
+    return 1 / (p1 - p0)
 
 
-def unbiased_grr_count(data, epsilon, bin_size, data_size, sparsity):
-    return sum(unbiase_grr_vector(data, epsilon, bin_size, data_size, sparsity))
+# def get_grr_beta(epsilon, bin_size, data_size, sparsity):
+#     boosted_budget = budget_sampling(epsilon, bin_size)
+#     size_equivalent = bin_size * ceil(data_size / bin_size)
+#     return (bin_size - 1) / (
+#         size_equivalent - bin_size + 1
+#     ) * data_size * sparsity + size_equivalent * bin_size / (
+#         size_equivalent - bin_size + 1
+#     ) / (
+#         np.exp(boosted_budget) - 1
+#     )
+def get_grr_beta(epsilon, partition, nb_ones):
+    p1 = proba_grr_from_one(epsilon, partition, nb_ones)
+    p0 = proba_grr_from_zero(epsilon, partition, nb_ones)
+    return p0 / (p1 - p0)
+
+
+def get_max_estimation_grr(epsilon, partition):
+    n = partition.nb_bins * partition.bin_size
+    s = partition.bin_size
+    boosted_budget = budget_sampling(epsilon, s)
+    return n * s / (n - s + 1) * np.exp(boosted_budget) / (np.exp(boosted_budget) - 1)
+
+
+def get_max_alpha_grr(epsilon, partition):
+    n = partition.nb_bins * partition.bin_size
+    s = partition.bin_size
+    boosted_budget = budget_sampling(epsilon, s)
+    return n * s / (n - s + 1) * (np.exp(boosted_budget) + 1) / (np.exp(boosted_budget) - 1)
+
+
+def get_min_proba_from_one_grr(partition):
+    return 1 / partition.bin_size
+
+
+def unbiase_grr(x, epsilon, partition, nb_ones):
+    alpha = get_grr_alpha(epsilon, partition, nb_ones)
+    beta = get_grr_beta(epsilon, partition, nb_ones)
+    return alpha * x - beta
+
+
+# def unbiase_grr_vector(vector, epsilon, bin_size, data_size, sparsity):
+#     alpha = get_grr_alpha(epsilon, bin_size, data_size)
+#     beta = get_grr_beta(epsilon, bin_size, data_size, sparsity)
+#     return alpha * vector - beta
+#
+#
+# def unbiased_grr_count(data, epsilon, bin_size, data_size, sparsity):
+#     return sum(unbiase_grr_vector(data, epsilon, bin_size, data_size, sparsity))
 
 
 def asymmetric_randomized_response(data_list, epsilon, mu, data_size):
@@ -109,6 +157,14 @@ def asymmetric_randomized_response(data_list, epsilon, mu, data_size):
         compress(data_list, np.random.rand(len(data_list)) < proba_of_1_from_1)
     )
     return output_list_from_ones | output_list_from_zeros
+
+
+def proba_arr_from_one(mu):
+    return mu
+
+
+def proba_arr_from_zero(epsilon, mu):
+    return mu * np.exp(-epsilon)
 
 
 def get_arr_alpha(epsilon, mu):

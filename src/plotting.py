@@ -98,6 +98,6 @@ def plot_exp1(df):
 if __name__ == "__main__":
     df = pd.read_csv(DIR_LOGS / COMPILED_FILE)
     df_sum = pd.read_csv(DIR_LOGS / SUMMARY_FILE)
-    plot_exp1(df[(df["exp_name"] == "exp1") & (df["graph"] == "wiki")])
-    plot_sample(df[df["exp_name"] == "exp2"])
-    plot_sample(df[df["exp_name"] == "exp0"])
+    plot_exp1(df[(df["exp_name"] == "exp_1") & (df["graph"] == "gplus") & (df["graph_size"] == 107614)])
+    plot_sample(df[df["exp_name"] == "exp_2"])
+    plot_sample(df[df["exp_name"] == "exp_0"])
