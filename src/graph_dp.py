@@ -1,6 +1,7 @@
 import networkx as nx
 import numpy as np
 from scipy.stats import laplace
+from functools import lru_cache
 
 from graph import (
     smaller_neighbors,
@@ -126,11 +127,13 @@ class GraphGRR(GraphDP):
             i, j = j, i
         return self.partition_set[j].bin_of(i) in self.published_edges[j]
 
+    @lru_cache
     def proba_from_one(self, i, j):
         if i > j:
             i, j = j, i
         return proba_grr_from_one(self.privacy_budget, self.partition_set[j], self.down_degrees[j])
 
+    @lru_cache
     def proba_from_zero(self, i, j):
         if i > j:
             i, j = j, i
