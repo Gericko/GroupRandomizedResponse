@@ -35,23 +35,47 @@ class ARRLocalTriangleCounting:
     def _probability_bound(self, threshold, vertex_id):
         return np.exp(
             -self.degrees[vertex_id]
-            * kullback_leibler(threshold, self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1))
+            * kullback_leibler(
+                threshold,
+                self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(
+                    0, 1
+                ),
+            )
         )
 
     def clipping_threshold(self, vertex_id):
-        if self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) >= 1:
+        if (
+            self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1)
+            >= 1
+        ):
             return self.degrees[vertex_id]
         if self.degrees[vertex_id] <= 1:
             return 0
         lam = 1
         while (
-            self._probability_bound(lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1), vertex_id)
+            self._probability_bound(
+                lam
+                * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(
+                    0, 1
+                ),
+                vertex_id,
+            )
             > BETA
         ):
             lam += 1
-            if lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) >= 1:
+            if (
+                lam
+                * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(
+                    0, 1
+                )
+                >= 1
+            ):
                 return self.degrees[vertex_id]
-        return lam * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1) * self.degrees[vertex_id]
+        return (
+            lam
+            * self.graph_download_scheme.get_local_view(vertex_id).proba_from_one(0, 1)
+            * self.degrees[vertex_id]
+        )
 
     def publish(self, vertex_id):
         contributions = {
@@ -91,7 +115,12 @@ class ARRLocalTriangleCounting:
 
     def std(self, vertex_id):
         local_view = self.graph_download_scheme.get_local_view(vertex_id)
-        return local_view.max_estimation() * self.clipping_threshold(vertex_id) / self.epsilon * self.rv.std()
+        return (
+            local_view.max_estimation()
+            * self.clipping_threshold(vertex_id)
+            / self.epsilon
+            * self.rv.std()
+        )
 
 
 def count_triangles_arr(graph, graph_download_scheme, counting_budget, degrees):

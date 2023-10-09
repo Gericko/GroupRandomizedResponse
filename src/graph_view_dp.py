@@ -1,5 +1,10 @@
+from itertools import product
+from graph import smaller_neighbors
+
+
 class GraphView:
     def __init__(self, obfuscated_graph, vertex):
+        self.graph = obfuscated_graph.graph
         self.obfuscated_graph = obfuscated_graph
         self.vertex = vertex
 
@@ -36,6 +41,15 @@ class GraphView:
 
     def max_unbiased_degree(self):
         raise NotImplementedError
+
+    def count_triangles_local(self):
+        return sum(
+            self.edge_estimation(i, j)
+            for i, j in filter(
+                lambda x: x[0] > x[1],
+                product(smaller_neighbors(self.graph, self.vertex), repeat=2),
+            )
+        )
 
 
 class GraphViewFull(GraphView):
@@ -84,11 +98,29 @@ class GraphViewOne(GraphView):
         if self._max_unbiased_degree:
             return self._max_unbiased_degree
         nx_graph = self.obfuscated_graph.to_graph()
-        self._max_unbiased_degree = max(d for n, d in nx_graph.degree()) * self.max_estimation()
+        self._max_unbiased_degree = (
+            max(d for n, d in nx_graph.degree()) * self.max_estimation()
+        )
         return self._max_unbiased_degree
 
     def max_estimation(self):
-        return self.obfuscated_graph.max_alpha() / self.obfuscated_graph.min_proba_from_one()
+        return (
+            self.obfuscated_graph.max_alpha()
+            / self.obfuscated_graph.min_proba_from_one()
+        )
+
+    def count_triangles_local(self):
+        count = 0
+        for i, u in enumerate(sorted(smaller_neighbors(self.graph, self.vertex))):
+            if not self.obfuscated_graph.has_edge(self.vertex, i):
+                continue
+            count += sum(
+                self.alpha(u, v) * self.has_edge(u, v)
+                for v in smaller_neighbors(self.graph, self.vertex)
+                if v > u
+            )
+            -i * self.beta(u, 0)
+        return count
 
 
 class GraphDownloadScheme:
@@ -115,4 +147,7 @@ class OneDownload(GraphDownloadScheme):
         return GraphViewOne(self.obfuscated_graph, vertex)
 
     def download_cost(self):
-        return self.obfuscated_graph.download_cost() * self.obfuscated_graph.min_proba_from_one()
+        return (
+            self.obfuscated_graph.download_cost()
+            * self.obfuscated_graph.min_proba_from_one()
+        )

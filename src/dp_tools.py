@@ -122,7 +122,13 @@ def get_max_alpha_grr(epsilon, partition):
     n = partition.nb_bins * partition.bin_size
     s = partition.bin_size
     boosted_budget = budget_sampling(epsilon, s)
-    return n * s / (n - s + 1) * (np.exp(boosted_budget) + 1) / (np.exp(boosted_budget) - 1)
+    return (
+        n
+        * s
+        / (n - s + 1)
+        * (np.exp(boosted_budget) + 1)
+        / (np.exp(boosted_budget) - 1)
+    )
 
 
 def get_min_proba_from_one_grr(partition):

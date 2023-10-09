@@ -117,7 +117,9 @@ class GraphGRR(GraphDP):
         self.sample_size = sample_size
         self.down_degrees = down_degrees
         self.partition_set = get_partitions(graph, sample_size)
-        self.published_edges = publish_edge_list_grr(graph, privacy_budget, self.partition_set)
+        self.published_edges = publish_edge_list_grr(
+            graph, privacy_budget, self.partition_set
+        )
         self._max_unbiased_degree = None
 
     def has_edge(self, i, j):
@@ -131,13 +133,17 @@ class GraphGRR(GraphDP):
     def proba_from_one(self, i, j):
         if i > j:
             i, j = j, i
-        return proba_grr_from_one(self.privacy_budget, self.partition_set[j], self.down_degrees[j])
+        return proba_grr_from_one(
+            self.privacy_budget, self.partition_set[j], self.down_degrees[j]
+        )
 
     @lru_cache
     def proba_from_zero(self, i, j):
         if i > j:
             i, j = j, i
-        return proba_grr_from_zero(self.privacy_budget, self.partition_set[j], self.down_degrees[j])
+        return proba_grr_from_zero(
+            self.privacy_budget, self.partition_set[j], self.down_degrees[j]
+        )
 
     def download_cost(self):
         return (
@@ -151,7 +157,9 @@ class GraphGRR(GraphDP):
         if self._max_unbiased_degree:
             return self._max_unbiased_degree
         nx_graph = self.to_graph()
-        self._max_unbiased_degree = max(d for n, d in nx_graph.degree()) * self.max_estimation()
+        self._max_unbiased_degree = (
+            max(d for n, d in nx_graph.degree()) * self.max_estimation()
+        )
         return self._max_unbiased_degree
 
     def max_estimation(self):
@@ -202,7 +210,10 @@ class GraphARR(GraphDP):
     def max_unbiased_degree(self):
         if self._max_unbiased_degree:
             return self._max_unbiased_degree
-        self._max_unbiased_degree = max(sum(self.edge_estimation(i, j) for j in self.published_edges[i]) for i in self.published_edges)
+        self._max_unbiased_degree = max(
+            sum(self.edge_estimation(i, j) for j in self.published_edges[i])
+            for i in self.published_edges
+        )
         return self._max_unbiased_degree
 
     def max_estimation(self):

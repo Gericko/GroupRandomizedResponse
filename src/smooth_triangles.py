@@ -1,9 +1,7 @@
-from itertools import product
 from math import ceil
 import numpy as np
 
 from smooth_sensitivity import SmoothAccessMechanism
-from graph import smaller_neighbors
 from graph_dp import estimate_down_degrees, GraphGRR, GraphARR
 from graph_view_dp import OneDownload
 
@@ -34,28 +32,20 @@ def get_max_contribution_from_neighbors(vertex_id, graph, graph_view):
 
 
 def get_smooth_sensitivity_triangles(beta, vertex_id, graph, graph_view):
-    max_contribution_from_neighbors = get_max_contribution_from_neighbors(vertex_id, graph, graph_view)
+    max_contribution_from_neighbors = get_max_contribution_from_neighbors(
+        vertex_id, graph, graph_view
+    )
 
     def local_sensitivity(k):
         return min(
             max_contribution_from_neighbors + graph_view.max_estimation() * k,
-            graph_view.max_unbiased_degree()
+            graph_view.max_unbiased_degree(),
         )
 
     def smooth_bound(k):
         return np.exp(-beta * k) * local_sensitivity(k)
 
     return max(smooth_bound(k) for k in range(ceil(1 / beta) + 1))
-
-
-def count_triangles_local(vertex_id, graph, graph_view):
-    return sum(
-        graph_view.edge_estimation(i, j)
-        for i, j in filter(
-            lambda x: x[0] > x[1],
-            product(smaller_neighbors(graph, vertex_id), repeat=2),
-        )
-    )
 
 
 class SmoothLocalTriangleCounting(SmoothAccessMechanism):
@@ -65,7 +55,7 @@ class SmoothLocalTriangleCounting(SmoothAccessMechanism):
         self.graph_download_scheme = graph_download_scheme
 
     def function(self, x):
-        return count_triangles_local(x, self.graph, self.graph_download_scheme.get_local_view(x))
+        return self.graph_download_scheme.get_local_view(x).count_triangles_local()
 
     def smooth_sensitivity(self, x):
         return get_smooth_sensitivity_triangles(
@@ -108,7 +98,7 @@ def estimate_triangles_smooth_grr_without_count(graph, privacy_budget, sample_si
     graph_download_scheme = OneDownload(obfuscated_graph)
 
     count = sum(
-        count_triangles_local(vertex_id, graph, graph_download_scheme.get_local_view(vertex_id))
+        graph_download_scheme.get_local_view(vertex_id).count_triangles_local()
         for vertex_id in graph.nodes
     )
 
@@ -136,10 +126,8 @@ def estimate_triangles_smooth_arr_without_count(graph, privacy_budget, sample_si
     graph_download_scheme = OneDownload(obfuscated_graph)
 
     count = sum(
-        count_triangles_local(vertex_id, graph, graph_download_scheme.get_local_view(vertex_id))
+        graph_download_scheme.get_local_view(vertex_id).count_triangles_local()
         for vertex_id in graph.nodes
     )
 
     return count, 0, 0, graph_download_scheme.download_cost()
-
-
