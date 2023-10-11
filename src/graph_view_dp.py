@@ -112,14 +112,14 @@ class GraphViewOne(GraphView):
     def count_triangles_local(self):
         count = 0
         for i, u in enumerate(sorted(smaller_neighbors(self.graph, self.vertex))):
-            if not self.obfuscated_graph.has_edge(self.vertex, i):
+            count -= i * self.beta(u, 0)
+            if not self.obfuscated_graph.has_edge(self.vertex, u):
                 continue
             count += sum(
                 self.alpha(u, v) * self.has_edge(u, v)
                 for v in smaller_neighbors(self.graph, self.vertex)
                 if v > u
             )
-            -i * self.beta(u, 0)
         return count
 
 
