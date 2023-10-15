@@ -15,7 +15,7 @@ GRAPH_SHARE = 0.45
 COUNT_SHARE = 0.45
 
 
-def get_max_shared_2_hop_neighbors(vertex_id, graph, obfuscated_graph, k=1):
+def get_max_shared_2_hop_neighbors(vertex_id, graph, obfuscated_graph):
     mask_vertex = np.array(
         [1] * vertex_id + [0] * (graph.number_of_nodes() - vertex_id)
     )
@@ -26,14 +26,13 @@ def get_max_shared_2_hop_neighbors(vertex_id, graph, obfuscated_graph, k=1):
         ),
         start=np.zeros(graph.number_of_nodes()),
     )
-    max_neighbors_sharing = heapq.nlargest(
-        k,
+    return max(
         (
             (obfuscated_graph.smaller_neighbors(node) * two_hop_neighbors).sum()
             for node in graph.nodes
         ),
+        default=0,
     )
-    return max_neighbors_sharing + (k - len(max_neighbors_sharing)) * [0]
 
 
 def get_max_common_neighbors(graph, obfuscated_graph):
@@ -50,16 +49,16 @@ def get_smooth_sensitivity_cycles_grr(
     beta, vertex_id, graph, obfuscated_graph, max_common_neighbors
 ):
     max_neighbors_sharing = get_max_shared_2_hop_neighbors(
-        vertex_id, graph, obfuscated_graph, ceil(2 / beta) + 1
+        vertex_id, graph, obfuscated_graph
     )
 
     def local_sensitivity(k):
-        return sum(max_neighbors_sharing[:k]) + max_common_neighbors * k * (k - 1) / 2
+        return max_neighbors_sharing + max_common_neighbors * k
 
     def smooth_bound(k):
         return np.exp(-beta * k) * local_sensitivity(k)
 
-    return max(smooth_bound(i) for i in range(ceil(2 / beta) + 1))
+    return max(smooth_bound(i) for i in range(ceil(1 / beta) + 1))
 
 
 def count_cycles_local(vertex_id, graph, obfuscated_graph):

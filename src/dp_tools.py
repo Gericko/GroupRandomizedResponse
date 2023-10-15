@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import laplace, binom
 from collections import Counter
 from itertools import compress
+from functools import lru_cache
 
 
 def randomized_response(x, epsilon):
@@ -68,7 +69,7 @@ def proba_grr_from_one(epsilon, partition, nb_ones):
     n = partition.nb_bins * partition.bin_size
     s = partition.bin_size
     boosted_budget = budget_sampling(epsilon, s)
-    p = ((s - 1) * (nb_ones - 1) / n + 1) / s
+    p = ((s - 1) * (nb_ones - 1) / (n - 1) + 1) / s
     return (np.exp(boosted_budget) * p + 1 - p) / (1 + np.exp(boosted_budget))
 
 
@@ -76,7 +77,7 @@ def proba_grr_from_zero(epsilon, partition, nb_ones):
     n = partition.nb_bins * partition.bin_size
     s = partition.bin_size
     boosted_budget = budget_sampling(epsilon, s)
-    p = (s - 1) / s * nb_ones / n
+    p = (s - 1) / s * nb_ones / (n - 1)
     return (np.exp(boosted_budget) * p + 1 - p) / (1 + np.exp(boosted_budget))
 
 
@@ -115,7 +116,7 @@ def get_max_estimation_grr(epsilon, partition):
     n = partition.nb_bins * partition.bin_size
     s = partition.bin_size
     boosted_budget = budget_sampling(epsilon, s)
-    return n * s / (n - s + 1) * np.exp(boosted_budget) / (np.exp(boosted_budget) - 1)
+    return (n - 1) * s / (n - s) * np.exp(boosted_budget) / (np.exp(boosted_budget) - 1)
 
 
 def get_max_alpha_grr(epsilon, partition):
@@ -123,9 +124,9 @@ def get_max_alpha_grr(epsilon, partition):
     s = partition.bin_size
     boosted_budget = budget_sampling(epsilon, s)
     return (
-        n
+        (n - 1)
         * s
-        / (n - s + 1)
+        / (n - s)
         * (np.exp(boosted_budget) + 1)
         / (np.exp(boosted_budget) - 1)
     )
@@ -169,6 +170,7 @@ def proba_arr_from_one(mu):
     return mu
 
 
+@lru_cache
 def proba_arr_from_zero(epsilon, mu):
     return mu * np.exp(-epsilon)
 
