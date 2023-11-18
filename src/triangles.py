@@ -1,76 +1,175 @@
 import numpy as np
-from scipy.stats import laplace
-from itertools import product
 
-from dp_tools import make_clip_dict
-from graph import smaller_neighbors
-from graph_dp import GraphGRR
+from graph_dp import GraphGRR, GraphARR, estimate_down_degrees, estimate_degrees
+from graph_view_dp import FullDownload, OneDownload, CSSDownload
+from smooth_triangles import SmoothLocalTriangleCounting
+from clipping_triangles import ChernoffClip, ChebyshevClip
+
+DEGREE_SHARE = 0.1
+GRAPH_SHARE = 0.5
+COUNT_SHARE = 0.5
 
 
-ALPHA = 150
+class RawTriangleCounting:
+    def __init__(self, graph, graph_download_scheme):
+        self.graph = graph
+        self.graph_download_scheme = graph_download_scheme
+
+    def publish(self, vertex_id):
+        local_view = self.graph_download_scheme.get_local_view(vertex_id)
+        return local_view.count_triangles_local(), 0, 0
 
 
 def tuple_sum(iter, output_size=0):
     return tuple(sum(x) for x in zip([0] * output_size, *iter))
 
 
-def count_triangles(graph, obfuscated_graph, counting_budget, degrees):
-    def fixed_edge(vertex_id, j, contributions):
-        count, bias = 0, 0
-        for i in filter(lambda x: x < j, smaller_neighbors(graph, vertex_id)):
-            unbiased_edge = obfuscated_graph.edge_estimation(i, j)
-            count += unbiased_edge
-            if (
-                contributions[i] - unbiased_edge >= 0
-                and contributions[j] - unbiased_edge >= 0
-            ):
-                contributions[i] -= unbiased_edge
-                contributions[j] -= unbiased_edge
-            else:
-                bias -= unbiased_edge
-        return count, bias
+class TriangleEstimator:
+    def __init__(self, graph, privacy_budget, sample_size, steps):
+        self.graph = graph
+        self.privacy_budget = privacy_budget
+        self.sample_size = sample_size
+        self.user_sample = sample_size
+        self.server_sample = 1
+        self.steps = steps
+        self.degree_budget = 0
+        self.publishing_budget = 0
+        self.counting_budget = 0
+        self.degrees = None
+        self.obfuscated_graph = None
+        self.graph_download_scheme = None
 
-    def clipping_threshold(vertex_id, k=10):
-        alpha = obfuscated_graph.get_alpha()
-        beta = obfuscated_graph.get_beta_max()
-        variance_max = (
-            (1 + beta)
-            * (alpha - 1 - beta)
-            * max(ALPHA + degrees[vertex_id] - 1, 0)
-            * (
-                1
-                + obfuscated_graph.sample_size
-                / obfuscated_graph.graph.number_of_nodes()
-                * max(ALPHA + degrees[vertex_id] - 2, 0)
+    def _degree_publishing(self):
+        if self.steps["graph_publishing"] == "GRR":
+            self.degree_budget = DEGREE_SHARE * self.privacy_budget
+            self.degrees = estimate_down_degrees(self.graph, self.degree_budget)
+        elif (
+            self.steps["counting"] == "chernoff"
+            or self.steps["counting"] == "chebyshev"
+        ):
+            self.degree_budget = DEGREE_SHARE * self.privacy_budget
+            self.degrees = estimate_degrees(self.graph, self.degree_budget)
+
+    def _graph_publishing(self):
+        if self.steps["counting"] == "raw":
+            self.publishing_budget = self.privacy_budget - self.degree_budget
+        else:
+            remaining_budget = self.privacy_budget - self.degree_budget
+            self.publishing_budget = GRAPH_SHARE * remaining_budget
+            self.counting_budget = COUNT_SHARE * remaining_budget
+
+        if self.steps["downloading"] == "css" or self.steps["downloading"] == "one":
+            if self.steps["graph_publishing"] == "GRR":
+                self.user_sample = np.ceil(self.sample_size ** (1 / 3))
+                self.server_sample = self.user_sample**2 / self.sample_size
+            elif self.steps["graph_publishing"] == "ARR":
+                self.user_sample = self.sample_size ** (1 / 2)
+                self.server_sample = 1 / self.sample_size ** (1 / 2)
+        elif self.steps["downloading"] == "full":
+            if self.steps["graph_publishing"] == "GRR":
+                self.user_sample = np.ceil(self.sample_size ** (1 / 2))
+                self.server_sample = 1
+            elif self.steps["graph_publishing"] == "ARR":
+                self.user_sample = self.sample_size
+                self.server_sample = 1
+
+        if self.steps["graph_publishing"] == "GRR":
+            self.obfuscated_graph = GraphGRR(
+                self.graph, self.publishing_budget, self.user_sample, self.degrees
             )
+        elif self.steps["graph_publishing"] == "ARR":
+            self.user_sample_rate = (
+                np.exp(self.publishing_budget)
+                / (np.exp(self.publishing_budget) + 1)
+                / self.user_sample
+            )
+            self.obfuscated_graph = GraphARR(
+                self.graph, self.publishing_budget, self.user_sample_rate
+            )
+        else:
+            raise ValueError(
+                "{} is not a valid name for a graph publishing step,"
+                " it has to be either 'GRR' or 'ARR'".format(
+                    self.steps["graph_publishing"]
+                )
+            )
+
+    def _graph_communication(self):
+        if self.steps["downloading"] == "full":
+            self.graph_download_scheme = FullDownload(self.obfuscated_graph)
+        elif self.steps["downloading"] == "one":
+            self.graph_download_scheme = OneDownload(self.obfuscated_graph)
+        elif self.steps["downloading"] == "css":
+            self.graph_download_scheme = CSSDownload(
+                self.obfuscated_graph, self.server_sample
+            )
+        else:
+            raise ValueError(
+                "{} is not a valid name for a downloading scheme,"
+                " it has to be either 'full', 'one' or 'css'".format(
+                    self.steps["downloading"]
+                )
+            )
+
+    def _triangle_counting(self):
+        if self.steps["counting"] == "raw":
+            publishing_mechanism = RawTriangleCounting(
+                self.graph, self.graph_download_scheme
+            )
+        elif self.steps["counting"] == "smooth":
+            publishing_mechanism = SmoothLocalTriangleCounting(
+                self.counting_budget, self.graph, self.graph_download_scheme
+            )
+        elif self.steps["counting"] == "chernoff":
+            if self.steps["graph_publishing"] != "ARR":
+                raise ValueError(
+                    "The use of Chernoff bound is only possible when ARR is used"
+                )
+            publishing_mechanism = ChernoffClip(
+                self.counting_budget,
+                self.graph,
+                self.graph_download_scheme,
+                self.degrees,
+                self.user_sample_rate,
+            )
+        elif self.steps["counting"] == "chebyshev":
+            if self.steps["graph_publishing"] != "GRR":
+                raise ValueError(
+                    "The use of Chebyshev bound is only possible when GRR is used"
+                )
+            variance_max = (
+                self.obfuscated_graph.max_alpha()
+                * (2 + 1 / (np.exp(self.publishing_budget) - 1))
+                / self.server_sample
+            )
+            covariance_max = (
+                (self.user_sample - 1)
+                / (self.user_sample * self.obfuscated_graph.partition_set[0].nb_bins)
+                * variance_max
+            )
+            publishing_mechanism = ChebyshevClip(
+                self.counting_budget,
+                self.graph,
+                self.graph_download_scheme,
+                self.degrees,
+                variance_max,
+                covariance_max,
+            )
+        else:
+            raise ValueError(
+                "{} is not a valid name for a downloading scheme,"
+                " it has to be either 'raw', 'smooth', 'chernoff' or 'chebyshev'".format(
+                    self.steps["counting"]
+                )
+            )
+        return tuple_sum(
+            (publishing_mechanism.publish(vertex_id) for vertex_id in self.graph.nodes),
+            output_size=3,
         )
-        return max(0, ALPHA + degrees[vertex_id] + k * np.sqrt(variance_max))
 
-    def count_triangles_local(vertex_id):
-        clipping_thres = clipping_threshold(vertex_id)
-        contributions = {i: clipping_thres for i in smaller_neighbors(graph, vertex_id)}
-        return (
-            *tuple_sum(
-                (
-                    fixed_edge(vertex_id, j, contributions)
-                    for j in smaller_neighbors(graph, vertex_id)
-                ),
-                output_size=2,
-            ),
-            laplace(0, clipping_thres / counting_budget).rvs(),
-        )
-
-    return tuple_sum(
-        (count_triangles_local(vertex_id) for vertex_id in graph.nodes), output_size=3
-    )
-
-
-def estimate_triangles(
-    graph, degree_budget, publishing_budget, counting_budget, sample_size
-):
-    noise = laplace(0, 1 / degree_budget)
-    degrees = {n: d + noise.rvs() for n, d in graph.degree()}
-
-    obfuscated_graph = GraphGRR(graph, publishing_budget, sample_size)
-
-    return count_triangles(graph, obfuscated_graph, counting_budget, degrees)
+    def publish(self):
+        self._degree_publishing()
+        self._graph_publishing()
+        self._graph_communication()
+        count, bias, noise = self._triangle_counting()
+        return count, bias, noise, self.graph_download_scheme.download_cost()

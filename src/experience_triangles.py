@@ -6,33 +6,73 @@ from pathlib import Path
 import argparse
 
 from graph import load_imdb, load_gplus, load_wiki, extract_random_subgraph
-from arr_triangles import estimate_triangles_arr
-from smooth_triangles import (
-    estimate_triangles_smooth_arr,
-    estimate_triangles_smooth_grr,
-    estimate_triangles_smooth_arr_without_count,
-    estimate_triangles_smooth_grr_without_count,
-)
+from triangles import TriangleEstimator
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DIR_LOGS = BASE_DIR / "logs"
 
 ALGOS = {
-    "grr": estimate_triangles_smooth_grr,
-    "grr_inf": estimate_triangles_smooth_grr_without_count,
-    "arr_clip": estimate_triangles_arr,
-    "arr_smooth": estimate_triangles_smooth_arr,
-    "arr_inf": estimate_triangles_smooth_arr_without_count,
+    "grr_smooth": {
+        "graph_publishing": "GRR",
+        "downloading": "full",
+        "counting": "smooth",
+    },
+    "grr_clip": {
+        "graph_publishing": "GRR",
+        "downloading": "full",
+        "counting": "chebyshev",
+    },
+    "arr_clip": {
+        "graph_publishing": "ARR",
+        "downloading": "full",
+        "counting": "chernoff",
+    },
+    "arr_smooth": {
+        "graph_publishing": "ARR",
+        "downloading": "full",
+        "counting": "smooth",
+    },
+    "grr_css_smooth": {
+        "graph_publishing": "GRR",
+        "downloading": "css",
+        "counting": "smooth",
+    },
+    "grr_css_clip": {
+        "graph_publishing": "GRR",
+        "downloading": "css",
+        "counting": "chebyshev",
+    },
+    "arr_one_clip": {
+        "graph_publishing": "ARR",
+        "downloading": "one",
+        "counting": "chernoff",
+    },
+    "arr_one_smooth": {
+        "graph_publishing": "ARR",
+        "downloading": "one",
+        "counting": "smooth",
+    },
+    "grr_css_inf": {
+        "graph_publishing": "GRR",
+        "downloading": "css",
+        "counting": "raw",
+    },
+    "arr_one_inf": {
+        "graph_publishing": "ARR",
+        "downloading": "one",
+        "counting": "raw",
+    },
 }
 
+
 CONFIG_TEST = {
-    "graph": "wiki",
-    "graph_size": 100,
+    "graph": "gplus",
+    "graph_size": 20000,
     "exp_name": "test",
-    "algorithm": "arr_clip",
+    "algorithm": "arr_one_clip",
     "privacy_budget": 1,
-    "sample": 3,
+    "sample": 32,
     "nb_iter": 1,
 }
 
@@ -42,11 +82,13 @@ def experience_triangle(graph, param):
         extracted_graph = extract_random_subgraph(graph, param["graph_size"])
         true_triangle = sum(nx.triangles(extracted_graph).values()) / 3
         start_time = time.time()
-        count, bias, noise, cost = ALGOS[param["algorithm"]](
+        estimator = TriangleEstimator(
             extracted_graph,
             param["privacy_budget"],
             param["sample"],
+            ALGOS[param["algorithm"]],
         )
+        count, bias, noise, cost = estimator.publish()
         result = pd.DataFrame(
             [
                 {

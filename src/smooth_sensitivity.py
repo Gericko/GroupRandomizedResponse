@@ -19,8 +19,8 @@ class SmoothAccessMechanism:
     def __init__(self, epsilon, gamma):
         self.epsilon = epsilon
         self.gamma = gamma
-        self.alpha = epsilon / (4 * gamma)
-        self.beta = epsilon / gamma
+        self.alpha = epsilon / (2 * (gamma - 1))
+        self.beta = epsilon / (2 * (gamma - 1))
         self.rv = PolynomialTailRV(gamma=self.gamma)
         self.sd = self.rv.std()
 
@@ -33,6 +33,7 @@ class SmoothAccessMechanism:
     def publish(self, x):
         return (
             self.function(x),
+            0,
             self.smooth_sensitivity(x) / self.alpha * self.rv.rvs(),
         )
 

@@ -1,4 +1,3 @@
-from math import ceil
 import numpy as np
 from scipy.stats import laplace, binom
 from collections import Counter
@@ -81,31 +80,12 @@ def proba_grr_from_zero(epsilon, partition, nb_ones):
     return (np.exp(boosted_budget) * p + 1 - p) / (1 + np.exp(boosted_budget))
 
 
-# def get_grr_alpha(epsilon, bin_size, data_size):
-#     boosted_budget = budget_sampling(epsilon, bin_size)
-#     size_equivalent = bin_size * ceil(data_size / bin_size)
-#     return (
-#         size_equivalent
-#         * bin_size
-#         / (size_equivalent - bin_size + 1)
-#         * (1 + 2 / (np.exp(boosted_budget) - 1))
-#     )
 def get_grr_alpha(epsilon, partition, nb_ones):
     p1 = proba_grr_from_one(epsilon, partition, nb_ones)
     p0 = proba_grr_from_zero(epsilon, partition, nb_ones)
     return 1 / (p1 - p0)
 
 
-# def get_grr_beta(epsilon, bin_size, data_size, sparsity):
-#     boosted_budget = budget_sampling(epsilon, bin_size)
-#     size_equivalent = bin_size * ceil(data_size / bin_size)
-#     return (bin_size - 1) / (
-#         size_equivalent - bin_size + 1
-#     ) * data_size * sparsity + size_equivalent * bin_size / (
-#         size_equivalent - bin_size + 1
-#     ) / (
-#         np.exp(boosted_budget) - 1
-#     )
 def get_grr_beta(epsilon, partition, nb_ones):
     p1 = proba_grr_from_one(epsilon, partition, nb_ones)
     p0 = proba_grr_from_zero(epsilon, partition, nb_ones)
@@ -140,16 +120,6 @@ def unbiase_grr(x, epsilon, partition, nb_ones):
     alpha = get_grr_alpha(epsilon, partition, nb_ones)
     beta = get_grr_beta(epsilon, partition, nb_ones)
     return alpha * x - beta
-
-
-# def unbiase_grr_vector(vector, epsilon, bin_size, data_size, sparsity):
-#     alpha = get_grr_alpha(epsilon, bin_size, data_size)
-#     beta = get_grr_beta(epsilon, bin_size, data_size, sparsity)
-#     return alpha * vector - beta
-#
-#
-# def unbiased_grr_count(data, epsilon, bin_size, data_size, sparsity):
-#     return sum(unbiase_grr_vector(data, epsilon, bin_size, data_size, sparsity))
 
 
 def asymmetric_randomized_response(data_list, epsilon, mu, data_size):
