@@ -88,7 +88,7 @@ def experience_triangle(graph, param):
             param["sample"],
             ALGOS[param["algorithm"]],
         )
-        count, bias, noise, cost = estimator.publish()
+        count, bias, noise, u_cost, d_cost = estimator.publish()
         result = pd.DataFrame(
             [
                 {
@@ -97,7 +97,8 @@ def experience_triangle(graph, param):
                     "count": count,
                     "bias": bias,
                     "noise": noise,
-                    "download_cost": cost,
+                    "upload_cost": u_cost,
+                    "download_cost": d_cost,
                     "execution_time": time.time() - start_time,
                 }
             ]

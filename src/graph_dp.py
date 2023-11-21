@@ -89,6 +89,12 @@ class GraphDP:
         self._nx_graph = nx.Graph(adjacency_dict)
         return self._nx_graph
 
+    def upload_cost(self):
+        raise NotImplementedError
+
+    def download_cost(self):
+        return self.graph.number_of_nodes() * self.upload_cost()
+
     def max_unbiased_degree(self):
         raise NotImplementedError
 
@@ -145,9 +151,9 @@ class GraphGRR(GraphDP):
             self.privacy_budget, self.partition_set[j], self.down_degrees[j]
         )
 
-    def download_cost(self):
+    def upload_cost(self):
         return (
-            self.graph.number_of_nodes() ** 2
+            self.graph.number_of_nodes()
             * np.log(self.graph.number_of_nodes() / self.sample_size)
             / self.sample_size
             / (2 + self.sample_size * (np.exp(self.privacy_budget) - 1))
@@ -199,11 +205,11 @@ class GraphARR(GraphDP):
     def proba_from_zero(self, i, j):
         return proba_arr_from_zero(self.privacy_budget, self.sample_rate)
 
-    def download_cost(self):
+    def upload_cost(self):
         return (
             self.sample_rate
             * np.exp(-2 * self.privacy_budget)
-            * self.graph.number_of_nodes() ** 2
+            * self.graph.number_of_nodes()
             * np.log(self.graph.number_of_nodes())
         )
 
