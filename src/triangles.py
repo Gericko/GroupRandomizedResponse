@@ -137,16 +137,14 @@ class TriangleEstimator:
                 raise ValueError(
                     "The use of Chebyshev bound is only possible when GRR is used"
                 )
+            s = self.user_sample
+            m = self.obfuscated_graph.partition_set[0].nb_bins
             variance_max = (
                 self.obfuscated_graph.max_alpha()
-                * (2 + 1 / (np.exp(self.publishing_budget) - 1))
+                * (2 + m / (m - 1) / (np.exp(self.publishing_budget) - 1))
                 / self.server_sample
             )
-            covariance_max = (
-                (self.user_sample - 1)
-                / (self.user_sample * self.obfuscated_graph.partition_set[0].nb_bins)
-                * variance_max
-            )
+            covariance_max = 2 * (s - 1) / (s * m - 1) * variance_max
             publishing_mechanism = ChebyshevClip(
                 self.counting_budget,
                 self.graph,
@@ -172,4 +170,10 @@ class TriangleEstimator:
         self._graph_publishing()
         self._graph_communication()
         count, bias, noise = self._triangle_counting()
-        return count, bias, noise, self.graph_download_scheme.download_cost()
+        return (
+            count,
+            bias,
+            noise,
+            self.graph_download_scheme.upload_cost(),
+            self.graph_download_scheme.download_cost(),
+        )
