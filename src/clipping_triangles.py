@@ -101,4 +101,4 @@ class ChebyshevClip(ClipLocalTriangleCounting):
     def threshold(self, local_view):
         safe_degree = self.degrees[local_view.vertex] + ALPHA
         variance_sum = safe_degree * self.variance + safe_degree**2 * self.covariance
-        return safe_degree + np.sqrt(max(0, BETA_CHEBYSHEV * variance_sum))
+        return safe_degree + np.sqrt(max(0, variance_sum / BETA_CHEBYSHEV))
