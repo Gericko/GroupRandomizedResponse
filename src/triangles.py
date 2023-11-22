@@ -174,6 +174,6 @@ class TriangleEstimator:
             count,
             bias,
             noise,
-            self.graph_download_scheme.upload_cost(),
+            self.obfuscated_graph.upload_cost(),
             self.graph_download_scheme.download_cost(),
         )
