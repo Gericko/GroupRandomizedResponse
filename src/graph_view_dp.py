@@ -1,7 +1,7 @@
 from itertools import product
-from functools import lru_cache
+import numpy as np
+
 from graph import smaller_neighbors
-from dp_tools import event_with_proba
 
 
 class GraphView:
@@ -110,9 +110,10 @@ class GraphViewOne(GraphView):
 
 
 class GraphViewCSS(GraphView):
-    def __init__(self, obfuscated_graph, vertex, sampling_rate):
+    def __init__(self, obfuscated_graph, vertex, sampling_rate, seed):
         super().__init__(obfuscated_graph, vertex)
         self.sampling_rate = sampling_rate
+        self.seed = seed
 
     def is_downloaded(self, i, j):
         if i > j:
@@ -121,9 +122,8 @@ class GraphViewCSS(GraphView):
             j, self.obfuscated_graph.partition_set[j].bin_of(i)
         )
 
-    @lru_cache(None)
     def _is_bin_downloaded(self, vertex, bin):
-        return event_with_proba(self.sampling_rate)
+        return (hash((self.vertex, vertex, bin)) * self.seed) % 1 < self.sampling_rate
 
     def proba_download(self):
         return self.sampling_rate
@@ -180,7 +180,9 @@ class CSSDownload(GraphDownloadScheme):
         self.sampling_rate = sampling_rate
 
     def get_local_view(self, vertex):
-        return GraphViewCSS(self.obfuscated_graph, vertex, self.sampling_rate)
+        return GraphViewCSS(
+            self.obfuscated_graph, vertex, self.sampling_rate, np.random.random()
+        )
 
     def download_cost(self):
         return self.obfuscated_graph.download_cost() * self.sampling_rate
