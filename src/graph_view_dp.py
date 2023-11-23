@@ -1,7 +1,7 @@
 from itertools import product
-from functools import lru_cache
+import numpy as np
+
 from graph import smaller_neighbors
-from dp_tools import event_with_proba
 
 
 class GraphView:
@@ -121,9 +121,9 @@ class GraphViewCSS(GraphView):
             j, self.obfuscated_graph.partition_set[j].bin_of(i)
         )
 
-    @lru_cache(None)
     def _is_bin_downloaded(self, vertex, bin):
-        return event_with_proba(self.sampling_rate)
+        rng = np.random.default_rng(seed=abs(hash((self.vertex, vertex, bin))))
+        return rng.random() < self.sampling_rate
 
     def proba_download(self):
         return self.sampling_rate
