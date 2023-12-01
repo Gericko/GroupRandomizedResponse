@@ -79,7 +79,10 @@ CONFIG_TEST = {
 
 def experience_triangle(graph, param):
     for _ in trange(param["nb_iter"]):
-        extracted_graph = extract_random_subgraph(graph, param["graph_size"])
+        if graph.number_of_nodes() == param["graph_size"]:
+            extracted_graph = graph
+        else:
+            extracted_graph = extract_random_subgraph(graph, param["graph_size"])
         true_triangle = sum(nx.triangles(extracted_graph).values()) / 3
         start_time = time.time()
         estimator = TriangleEstimator(
