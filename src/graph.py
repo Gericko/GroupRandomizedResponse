@@ -70,6 +70,7 @@ def load_graph_from_file(file_name):
     print("Loading graph from {}...".format(file_name))
     starting_time = time()
     graph = nx.read_edgelist(DIR_DATA / file_name, nodetype=int)
+    graph = nx.convert_node_labels_to_integers(graph)
     duration = time() - starting_time
     print("The loading took {} seconds.".format(duration))
     return graph
