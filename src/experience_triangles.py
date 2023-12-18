@@ -67,12 +67,12 @@ ALGOS = {
 
 
 CONFIG_TEST = {
-    "graph": "gplus",
-    "graph_size": 20000,
+    "graph": "wiki",
+    "graph_size": 7115,
     "exp_name": "test",
-    "algorithm": "arr_one_clip",
+    "algorithm": "grr_css_smooth",
     "privacy_budget": 1,
-    "sample": 32,
+    "sample": 1024,
     "nb_iter": 1,
 }
 
@@ -159,7 +159,7 @@ def get_graph(graph_name):
 
 
 if __name__ == "__main__":
-    config = vars(get_parser().parse_args())
-    # config = CONFIG_TEST
+    # config = vars(get_parser().parse_args())
+    config = CONFIG_TEST
     graph = get_graph(config["graph"])
     experience_triangle(graph, config)

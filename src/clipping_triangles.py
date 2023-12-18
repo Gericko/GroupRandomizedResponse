@@ -1,26 +1,49 @@
 import numpy as np
+import networkx as nx
 from scipy.stats import laplace
 from itertools import combinations
 
 from graph import smaller_neighbors
+from graph_view_dp import GraphView, GraphDownloadScheme
 
-ALPHA = 150
-BETA = 1e-6
-BETA_CHEBYSHEV = 1e-3
+ALPHA = 150  # Margin taken on the degree estimation
+BETA = 1e-6  # Probability of clipping when the Chernoff bound is used
+BETA_CHEBYSHEV = 1e-3  # Probability of clipping when the Chebyshev bound is used
 
 
 class ClipLocalTriangleCounting:
-    def __init__(self, epsilon, graph, graph_download_scheme, degrees):
+    """Generic class for counting triangles using clipping"""
+
+    def __init__(
+        self,
+        epsilon: float,
+        graph: nx.Graph,
+        graph_download_scheme: GraphDownloadScheme,
+        degrees: dict[int, float],
+    ) -> None:
+        """Constructor for ClipLocalTriangleCounting"""
         self.epsilon = epsilon
         self.graph = graph
         self.graph_download_scheme = graph_download_scheme
         self.degrees = degrees
         self.rv = laplace(0, 1)
 
-    def threshold(self, local_view):
+    def threshold(self, local_view: GraphView) -> float:
+        """
+        Calculates the maximal contribution acceptable for an edge in the
+        local triangle count
+
+        :param local_view: Local view accessible to the user performing the local counting
+        """
         raise NotImplementedError
 
-    def local_count(self, local_view, threshold):
+    def local_count(
+        self, local_view: GraphView, threshold: float
+    ) -> tuple[float, float]:
+        """Returns the triangle count performed by a given user after clipping
+
+        :return: A tuple (count, bias) such that the triangle count after clipping is equal to count + bias
+        """
         contributions = {
             i: threshold for i in smaller_neighbors(self.graph, local_view.vertex)
         }
@@ -40,7 +63,13 @@ class ClipLocalTriangleCounting:
                 bias -= unbiased_edge
         return count, bias
 
-    def publish(self, vertex_id):
+    def publish(self, vertex_id: int) -> tuple[float, float, float]:
+        """Publishes the local triangle count counted by a given user
+
+        :param vertex_id: The user responsible for the count
+        :return: A tuple (count, bias, noise) such that the obfuscated triangle
+         count published by the user is equal to count + bias + noise
+        """
         local_view = self.graph_download_scheme.get_local_view(vertex_id)
         threshold = self.threshold(local_view)
         count, bias = self.local_count(local_view, threshold)
@@ -48,11 +77,14 @@ class ClipLocalTriangleCounting:
         return count, bias, noise
 
 
-def kullback_leibler(p1, p2):
+def kullback_leibler(p1: float, p2: float) -> float:
+    """Computes the Kullback-Leibler divergence between 2 probabilities"""
     return p1 * np.log(p1 / p2) + (1 - p1) * np.log((1 - p1) / (1 - p2))
 
 
 class ChernoffClip(ClipLocalTriangleCounting):
+    """Class implementing clipping using the Chernoff bound"""
+
     def __init__(
         self, epsilon, graph, graph_download_scheme, degrees, proba_of_presence
     ):
@@ -61,7 +93,7 @@ class ChernoffClip(ClipLocalTriangleCounting):
         )
         self.proba_of_presence = proba_of_presence
 
-    def _probability_bound(self, vertex, tentative_threshold):
+    def _probability_bound(self, vertex: int, tentative_threshold: float) -> float:
         return np.exp(
             -(self.degrees[vertex] + ALPHA)
             * kullback_leibler(
@@ -89,6 +121,8 @@ class ChernoffClip(ClipLocalTriangleCounting):
 
 
 class ChebyshevClip(ClipLocalTriangleCounting):
+    """Class implementing clipping using the Bienayme–Chebyshev inequality"""
+
     def __init__(
         self, epsilon, graph, graph_download_scheme, degrees, variance, covariance
     ):

@@ -1,7 +1,8 @@
 import numpy as np
+import networkx as nx
 
 from graph_dp import GraphGRR, GraphARR, estimate_down_degrees, estimate_degrees
-from graph_view_dp import FullDownload, OneDownload, CSSDownload
+from graph_view_dp import GraphDownloadScheme, FullDownload, OneDownload, CSSDownload
 from smooth_triangles import SmoothLocalTriangleCounting
 from clipping_triangles import ChernoffClip, ChebyshevClip
 
@@ -11,11 +12,18 @@ COUNT_SHARE = 0.5
 
 
 class RawTriangleCounting:
-    def __init__(self, graph, graph_download_scheme):
+    """
+    Class implementing triangle counting from an obfuscated graph without
+    further obfuscation on the count publication
+    """
+
+    def __init__(
+        self, graph: nx.Graph, graph_download_scheme: GraphDownloadScheme
+    ) -> None:
         self.graph = graph
         self.graph_download_scheme = graph_download_scheme
 
-    def publish(self, vertex_id):
+    def publish(self, vertex_id: int) -> tuple[float, float, float]:
         local_view = self.graph_download_scheme.get_local_view(vertex_id)
         return local_view.count_triangles_local(), 0, 0
 
@@ -25,6 +33,11 @@ def tuple_sum(iter, output_size=0):
 
 
 class TriangleEstimator:
+    """
+    Class implementing private triangle counting.
+    The mechanisms used depend on the parameters
+    """
+
     def __init__(self, graph, privacy_budget, sample_size, steps):
         self.graph = graph
         self.privacy_budget = privacy_budget
