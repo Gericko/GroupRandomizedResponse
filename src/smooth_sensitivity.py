@@ -46,7 +46,7 @@ class SmoothAccessMechanism:
         raise NotImplementedError
 
     def publish(self, x):
-        """Publishes the obfuscated data as a tuple (count, bias, sensitivity)"""
+        """Publishes the obfuscated data as a tuple (count, bias, noise)"""
         return (
             self.function(x),
             0,

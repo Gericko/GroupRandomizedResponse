@@ -17,6 +17,7 @@ DATA_FILE_ORKUT = "sanitized-orkut.txt"
 CLEAN_ORKUT = "orkut_clean.csv"
 GPLUS = "gplus_combined.txt"
 WIKI = "Wiki-Vote.txt"
+CONGRESS = "congress.edgelist"
 
 
 def size_of_graph(g: nx.Graph) -> int:
@@ -159,6 +160,16 @@ def load_wiki() -> nx.Graph:
     :return: The graph representing the Wiki dataset
     """
     graph = load_graph_from_file(DIR_DATA / WIKI)
+    show_infos(graph)
+    return graph
+
+
+def load_congress() -> nx.Graph:
+    """Loads the congress dataset
+
+    :return: The graph representing the congress dataset
+    """
+    graph = load_graph_from_file(DIR_DATA / CONGRESS)
     show_infos(graph)
     return graph
 
