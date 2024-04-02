@@ -124,7 +124,7 @@ def get_graph(graph_name: str) -> nx.Graph:
 
 
 if __name__ == "__main__":
-    # config = vars(get_parser().parse_args())
-    config = CONFIG_TEST
+    config = vars(get_parser().parse_args())
+    # config = CONFIG_TEST
     graph = get_graph(config["graph"])
     experience_cycle(graph, config)
