@@ -26,8 +26,8 @@ ALGOS = {
 }
 
 CONFIG_TEST = {
-    "graph": "congress",
-    "graph_size": 200,  # 475
+    "graph": "email",
+    "graph_size": 100,  # 475
     "exp_name": "test_cycles",
     "algorithm": "grr",
     "privacy_budget": 1,
@@ -84,7 +84,7 @@ def get_parser():
         "--graph",
         type=str,
         default="congress",
-        choices=["imdb", "gplus", "wiki", "congress"],
+        choices=["imdb", "gplus", "wiki", "congress", "email"],
     )
     parser.add_argument(
         "-n",
@@ -124,7 +124,7 @@ def get_graph(graph_name: str) -> nx.Graph:
 
 
 if __name__ == "__main__":
-    config = vars(get_parser().parse_args())
-    # config = CONFIG_TEST
+    # config = vars(get_parser().parse_args())
+    config = CONFIG_TEST
     graph = get_graph(config["graph"])
     experience_cycle(graph, config)
