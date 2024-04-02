@@ -10,6 +10,7 @@ from graph import (
     load_gplus,
     load_wiki,
     load_congress,
+    load_email,
     extract_random_subgraph,
     cycle_count,
 )
@@ -116,6 +117,8 @@ def get_graph(graph_name: str) -> nx.Graph:
         return load_wiki()
     elif graph_name == "congress":
         return load_congress()
+    elif graph_name == "email":
+        return load_email()
     else:
         raise ValueError("Graph {} is unknown.".format(graph_name))
 

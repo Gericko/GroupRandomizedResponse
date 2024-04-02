@@ -18,6 +18,7 @@ CLEAN_ORKUT = "orkut_clean.csv"
 GPLUS = "gplus_combined.txt"
 WIKI = "Wiki-Vote.txt"
 CONGRESS = "congress.edgelist"
+EMAIL = "email-Eu-core.txt"
 
 
 def size_of_graph(g: nx.Graph) -> int:
@@ -170,6 +171,16 @@ def load_congress() -> nx.Graph:
     :return: The graph representing the congress dataset
     """
     graph = load_graph_from_file(DIR_DATA / CONGRESS)
+    show_infos(graph)
+    return graph
+
+
+def load_email() -> nx.Graph:
+    """Loads the email EU core dataset
+
+    :return: The graph representing the email EU core dataset
+    """
+    graph = load_graph_from_file(DIR_DATA / EMAIL)
     show_infos(graph)
     return graph
 
