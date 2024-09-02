@@ -5,7 +5,13 @@ import time
 from pathlib import Path
 import argparse
 
-from graph import load_imdb, load_gplus, load_wiki, extract_random_subgraph
+from graph import (
+    load_imdb,
+    load_gplus,
+    load_wiki,
+    load_facebook,
+    extract_random_subgraph,
+)
 from triangles import TriangleEstimator
 
 
@@ -154,6 +160,8 @@ def get_graph(graph_name):
         return load_gplus()
     elif graph_name == "wiki":
         return load_wiki()
+    elif graph_name == "facebook":
+        return load_facebook()
     else:
         raise ValueError("Graph {} is unknown.".format(graph_name))
 
