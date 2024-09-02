@@ -19,6 +19,7 @@ GPLUS = "gplus_combined.txt"
 WIKI = "Wiki-Vote.txt"
 CONGRESS = "congress.edgelist"
 EMAIL = "email-Eu-core.txt"
+FACEBOOK = "facebook_combined.txt"
 
 
 def size_of_graph(g: nx.Graph) -> int:
@@ -181,6 +182,16 @@ def load_email() -> nx.Graph:
     :return: The graph representing the email EU core dataset
     """
     graph = load_graph_from_file(DIR_DATA / EMAIL)
+    show_infos(graph)
+    return graph
+
+
+def load_facebook() -> nx.Graph:
+    """Loads the facebook dataset
+
+    :return: The graph representing the facebook dataset
+    """
+    graph = load_graph_from_file(DIR_DATA / FACEBOOK)
     show_infos(graph)
     return graph
 
