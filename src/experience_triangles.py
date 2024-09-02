@@ -129,7 +129,11 @@ def get_parser():
     )
 
     parser.add_argument(
-        "-g", "--graph", type=str, default="wiki", choices=["imdb", "gplus", "wiki"]
+        "-g",
+        "--graph",
+        type=str,
+        default="wiki",
+        choices=["imdb", "gplus", "wiki", "facebook"],
     )
     parser.add_argument(
         "-n",
