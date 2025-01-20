@@ -110,7 +110,7 @@ class GraphDP:
         """Unbiased estimation of the presence of an edge in the graph"""
         return self.alpha(i, j) * self.has_edge(i, j) - self.beta(i, j)
 
-    def smaller_neighbors(self, vertex: int) -> np.ndarray[Any, np.dtype[np.float_]]:
+    def smaller_neighbors(self, vertex: int) -> np.ndarray[Any, np.dtype[np.float64]]:
         vector = np.zeros(self.graph.number_of_nodes())
         for i in range(vertex):
             vector[i] = self.edge_estimation(vertex, i)
